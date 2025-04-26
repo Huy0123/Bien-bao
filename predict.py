@@ -15,12 +15,11 @@ video_writer = None
 current_processed_image = None
 
 # Parameters
-DETECTION_INTERVAL = 12
-SLOW_DELAY = 0.03
+DETECTION_INTERVAL = 24
+SLOW_DELAY = 0.0
 
 # Setup đường dẫn đầu ra
 def setup_output_directories():
-
     output_dir = os.path.join(os.path.dirname(__file__), "outputs")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -58,24 +57,34 @@ def update_result(photo, detected_labels):
     result_label.image = photo
 
     # Hiển thị nhãn đã phát hiện
-    unique_labels = []
-    label_counts = {}
+    # unique_labels = []
+    # label_counts = {}
+    #
+    # for label in detected_labels:
+    #     class_name = label.split()[0]
+    #     if class_name in label_counts:
+    #         label_counts[class_name] += 1
+    #     else:
+    #         label_counts[class_name] = 1
+    #
+    # for name, count in label_counts.items():
+    #     unique_labels.append(f"{name} ({count})")
+    #
+    # if unique_labels:
+    #     label_result_text.config(text="Nhận diện: " + ", ".join(unique_labels))
+    # else:
+    #     label_result_text.config(text="Không nhận diện được đối tượng")
 
-    for label in detected_labels:
-        class_name = label.split()[0]
-        if class_name in label_counts:
-            label_counts[class_name] += 1
-        else:
-            label_counts[class_name] = 1
-
-    for name, count in label_counts.items():
-        unique_labels.append(f"{name} ({count})")
-
-    if unique_labels:
-        label_result_text.config(text="Nhận diện: " + ", ".join(unique_labels))
-    else:
-        label_result_text.config(text="Không nhận diện được đối tượng")
-
+def get_unique(path):
+    if not os.path.exists(path):
+        return path
+    base_name, ext = os.path.splitext(path)
+    count = 1
+    while True:
+        new_path = f"{base_name}_{count}{ext}"
+        if not os.path.exists(new_path):
+            return new_path
+        count += 1
 # Lưu kết quả
 def save_current_result():
     global current_processed_image, uploaded_file_path
@@ -258,7 +267,7 @@ def predict():
 
             # Tạo tên file đầu ra
             output_path = os.path.join(today_dir, f"{base_name}_detected{ext}")
-
+            output_path = get_unique(output_path)
             video_writer = cv2.VideoWriter(
                 output_path,
                 cv2.VideoWriter_fourcc(*'mp4v'),
