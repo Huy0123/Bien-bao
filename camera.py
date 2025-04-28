@@ -48,14 +48,6 @@ class CameraDetector:
             return []
 
     def start(self, frame_callback=None, label_callback=None, smooth_mode=True):
-        """
-        Start camera detection
-        
-        Parameters:
-        -----------
-        smooth_mode : bool
-            If True, uses the 1234.py style smooth tracking on every frame
-        """
         if self.running:
             return
         self.running = True
@@ -175,11 +167,6 @@ class CameraDetector:
                                 )
                         except Exception as e:
                             print(f"Camera detection error: {e}")
-                    
-                    # Rest of the original processing code...
-                    # ... (kept for compatibility)
-                    
-                    # Use YOLO's built-in plotting for visualization
                     if results:
                         processed_frame = results[0].plot()
                     else:

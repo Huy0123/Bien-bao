@@ -16,7 +16,6 @@ class VideoDetector:
         self.available_trackers = self._get_available_trackers()
         
     def _get_available_trackers(self):
-        """Check which trackers are available in the current YOLO installation"""
         if not self.has_tracker:
             return []
             
