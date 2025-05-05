@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 22
+names: ['Ben xe buyt', 'Cam con lai', 'Cam do', 'Cam dung va do', 'Cam nguoc chieu', 'Cam quay dau xe', 'Cam re phai', 'Cam re trai', 'Chi dan', 'Chieu cao toi da', 'Duong giao nhau', 'Giao voi duong khong uu tien', 'Giao voi duong uu tien', 'Het tat ca lenh cam', 'Hieu lenh', 'Nguoi di bo cat ngang', 'Nguy hiem', 'Re phai', 'Re trai', 'Toc do toi da', 'Trong tai toi da', 'Vong xuyen']
+
+roboflow:
+  workspace: bien-bao-giao-thong-eccyz
+  project: vietnam-traffic-sign-detection-2i2j8-rsjh7-tcebk
+  version: 2
+  license: Public Domain
+  url: https://universe.roboflow.com/bien-bao-giao-thong-eccyz/vietnam-traffic-sign-detection-2i2j8-rsjh7-tcebk/dataset/2

@@ -3,51 +3,16 @@ import threading
 import time
 
 class CameraDetector:
-    def __init__(self, model, device, interval=30, slow_delay=0.0):
+    def __init__(self, model, device, interval=30):
         self.model = model
         self.device = device
         self.interval = interval
-        self.slow_delay = slow_delay
         self.running = False
         self.recording = False
         self.writer = None
         
-        # Check if tracker is available and which trackers are supported
-        self.has_tracker = hasattr(model, 'track')
-        self.available_trackers = self._get_available_trackers()
-        
-        # Store track history for visualization
-        self.track_history = {}
-        # Maximum history to keep
-        self.max_history = 30
-    
-    def _get_available_trackers(self):
-        """Check which trackers are available in the current YOLO installation"""
-        if not self.has_tracker:
-            return []
-            
-        try:
-            # Try importing tracker modules to see what's available
-            from ultralytics.trackers import BOTSORT, BYTETracker
-            trackers = []
-            
-            try:
-                _ = BYTETracker(track_thresh=0.25, track_buffer=30, match_thresh=0.8, frame_rate=30)
-                trackers.append("bytetrack")
-            except:
-                pass
-                
-            try:
-                _ = BOTSORT(track_thresh=0.25, track_buffer=30, match_thresh=0.8, frame_rate=30)
-                trackers.append("botsort")
-            except:
-                pass
-                
-            return trackers
-        except ImportError:
-            return []
 
-    def start(self, frame_callback=None, label_callback=None, smooth_mode=True):
+    def start(self,conf_thresh, iou_thresh, img_size, frame_callback, label_callback ,smooth_mode=True):
         if self.running:
             return
         self.running = True
@@ -57,122 +22,57 @@ class CameraDetector:
             count = 0
             
             # FPS control
-            fps_target = 15  # Target FPS for smooth operation
+            fps_target = 20
             frame_time = 1.0 / fps_target
             last_time = time.time()
             
-            # Determine if we should use tracking
-            use_tracking = self.has_tracker and len(self.available_trackers) > 0
-            selected_tracker = self.available_trackers[0] if use_tracking else None
+            results = None
             
             while self.running:
                 # Time control
                 current_time = time.time()
                 delta = current_time - last_time
-                
                 if delta < frame_time:
-                    # Wait to maintain consistent frame rate
                     time.sleep(frame_time - delta)
-                
-                # Capture new timestamp
                 last_time = time.time()
                 
-                # Read frame
                 ret, frame = cap.read()
                 if not ret:
                     break
                 
-                # Process frame using smooth approach
-                if smooth_mode:
+                should_process = smooth_mode or count == 0 or count % self.interval == 0
+                
+                # Process frame if needed
+                if should_process:
                     try:
-                        # Use tracking if available (like 1234.py)
-                        if use_tracking:
-                            try:
-                                results = self.model.track(
-                                    frame,
-                                    device=self.device,
-                                    persist=True,
-                                    tracker=selected_tracker,
-                                    verbose=False
-                                )
-                            except Exception as e:
-                                print(f"Tracking failed: {e}")
-                                results = self.model.predict(
-                                    frame,
-                                    device=self.device,
-                                    verbose=False
-                                )
-                        else:
-                            results = self.model.predict(
-                                frame,
-                                device=self.device,
-                                verbose=False
-                            )
-                            
-                        # Extract labels
-                        detected_labels = []
-                        if results and hasattr(results[0], "boxes") and results[0].boxes is not None:
-                            for box in results[0].boxes:
-                                label_id = int(box.cls[0].item())
-                                conf = float(box.conf[0].item())
-                                label = self.model.names[label_id]
-                                
-                                # Check for track ID
-                                track_id = None
-                                if hasattr(box, 'id') and box.id is not None:
-                                    track_id = int(box.id[0].item())
-                                    text = f"{label} {conf:.2f} ID:{track_id}"
-                                else:
-                                    text = f"{label} {conf:.2f}"
-                                    
-                                detected_labels.append(text)
-                        
-                        # Get annotated frame
-                        if results and len(results) > 0:
-                            processed_frame = results[0].plot()
-                        else:
-                            processed_frame = frame.copy()
-                            
+                        results = self.model.predict(
+                            frame,
+                            device=self.device,
+                            verbose=False,
+                            imgsz=img_size,
+                            conf=conf_thresh,
+                            iou=iou_thresh
+                        )
                     except Exception as e:
                         print(f"Camera processing error: {e}")
-                        processed_frame = frame.copy()
-                        detected_labels = []
-                        
-                else:
-                    # Original interval-based detection (existing code)
-                    if count == 0 or count % self.interval == 0:
-                        try:
-                            # Use tracking for smoother results if available
-                            if use_tracking:
-                                try:
-                                    results = self.model.track(
-                                        frame,
-                                        device=self.device,
-                                        persist=True,
-                                        tracker=selected_tracker,
-                                        verbose=False
-                                    )
-                                except Exception as e:
-                                    print(f"Tracking failed: {e}")
-                                    results = self.model.predict(
-                                        frame,
-                                        device=self.device,
-                                        verbose=False
-                                    )
-                            else:
-                                results = self.model.predict(
-                                    frame,
-                                    device=self.device,
-                                    verbose=False
-                                )
-                        except Exception as e:
-                            print(f"Camera detection error: {e}")
-                    if results:
-                        processed_frame = results[0].plot()
-                    else:
-                        processed_frame = frame
+                        results = None
                 
-                # Recording logic (same for both modes)
+                detected_labels = []
+                if results and hasattr(results[0], "boxes") and results[0].boxes is not None:
+                    for box in results[0].boxes:
+                        label_id = int(box.cls[0].item())
+                        conf = float(box.conf[0].item())
+                        label = self.model.names[label_id]
+                        text = f"{label} {conf:.2f}"
+                        detected_labels.append(text)
+                
+                # Get annotated frame
+                if results and len(results) > 0:
+                    processed_frame = results[0].plot()
+                else:
+                    processed_frame = frame.copy()
+                
+                # Recording logic
                 if self.recording and self.writer:
                     self.writer.write(processed_frame)
                 
@@ -202,7 +102,6 @@ class CameraDetector:
 
     def stop(self):
         self.running = False
-        self.track_history = {}  # Clear tracking history
 
     def start_record(self, save_path, fps=20, size=(640,480)):
         self.writer = cv2.VideoWriter(

@@ -1,5 +1,4 @@
 import os
-import threading
 import shutil
 from datetime import datetime
 import torch
@@ -14,7 +13,7 @@ from image import ImageDetector
 from video import VideoDetector
 from camera import CameraDetector
 
-# Utils: Thiết lập thư mục output và tạo tên file
+
 def setup_output_directories():
     base = os.path.join(os.path.dirname(__file__), 'outputs')
     os.makedirs(base, exist_ok=True)
@@ -35,56 +34,32 @@ def get_unique_filename(path):
 class MainApp:
     def __init__(self):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        print(f"Using device: {self.device}")
-        
-        # Thêm bảng ánh xạ nhãn sang tiếng Việt đầy đủ
         self.label_map = {
-            "Ben_xe_buyt": "Bến xe buýt",
-            "Cam_con_lai": "Biển báo cấm", 
-            "Cam_do": "Cấm đỗ",
-            "Cam_dung_va_do": "Cấm dừng và đỗ",
-            "Cam_nguoc_chieu": "Cấm ngược chiều",
-            "Cam_quay_dau_xe": "Cấm quay đầu xe",
-            "Cam_re_phai": "Cấm rẽ phải",
-            "Cam_re_trai": "Cấm rẽ trái",
-            "Chi_dan": "Biển báo chỉ dẫn",
-            "Chieu_cao_toi_da": "Chiều cao tối đa",
-            "Duong_giao_nhau": "Đường giao nhau",
-            "Giao_voi_duong_khong_uu_tien": "Giao với đường không ưu tiên",
-            "Giao_voi_duong_uu_tien": "Giao với đường ưu tiên",
-            "Het_tat_ca_lenh_cam": "Hết tất cả lệnh cấm",
-            "Hieu_lenh": "Biển báo hiệu lệnh",
-            "Nguoi_di_bo_cat_ngang": "Người đi bộ cắt ngang",
-            "Nguy_hiem": "Nguy hiểm",
-            "Re_phai": "Rẽ phải",
-            "Re_trai": "Rẽ trái", 
-            "Toc_do_toi_da": "Tốc độ tối đa",
-            "Trong_tai_toi_da": "Trọng tải tối đa",
-            "Vong_xuyen": "Vòng xuyến"
+            "Ben xe buyt": "Bến xe buýt",
+            "Cam con lai": "Biển báo cấm", 
+            "Cam do": "Cấm đỗ",
+            "Cam dung va do": "Cấm dừng và đỗ",
+            "Cam nguoc chieu": "Cấm ngược chiều",
+            "Cam quay dau xe": "Cấm quay đầu xe",
+            "Cam re phai": "Cấm rẽ phải",
+            "Cam re trai": "Cấm rẽ trái",
+            "Chi dan": "Biển báo chỉ dẫn",
+            "Chieu cao toi da": "Chiều cao tối đa",
+            "Duong giao nhau": "Đường giao nhau",
+            "Giao voi duong khong uu tien": "Giao với đường không ưu tiên",
+            "Giao voi duong uu tien": "Giao với đường ưu tiên",
+            "Het tat ca lenh cam": "Hết tất cả lệnh cấm",
+            "Hieu lenh": "Biển báo hiệu lệnh",
+            "Nguoi di bo cat ngang": "Người đi bộ cắt ngang",
+            "Nguy hiem": "Nguy hiểm",
+            "Re phai": "Rẽ phải",
+            "Re trai": "Rẽ trái", 
+            "Toc do toi da": "Tốc độ tối đa",
+            "Trong tai toi da": "Trọng tải tối đa",
+            "Vong xuyen": "Vòng xuyến"
         }
-        
-        # Thêm các biến thể không có dấu gạch dưới
-        variants = {}
-        for key, value in self.label_map.items():
-            # Thêm biến thể không có gạch dưới
-            variants[key.replace("_", "")] = value
-            variants[key.replace("_", " ")] = value
-            # Thêm biến thể chữ thường và chữ hoa
-            variants[key.lower()] = value 
-            variants[key.upper()] = value
-        
-        # Cập nhật bảng ánh xạ với các biến thể
-        self.label_map.update(variants)
-        
-        try:
-            print("Loading YOLO model...")
-            self.model = YOLO('runs/detect/train2/weights/best.pt')
-            self._configure_model()
-            print("Model loaded successfully")
-        except Exception as e:
-            print(f"Error loading model: {e}")
-            messagebox.showerror("Model Error", f"Failed to load YOLO model: {e}")
-            exit(1)
+        self.model = YOLO('runs/detect/train2/weights/best.pt')
+        self._configure_model()
         
         # Khởi tạo các detector
         self.img_det = ImageDetector(self.model, self.device)
@@ -95,46 +70,19 @@ class MainApp:
         self.build_ui()
 
     def _configure_model(self):
-        """Cấu hình mô hình và kiểm tra các tính năng"""
-        # Configure model settings for better visualization
         if hasattr(self.model, 'overrides'):
             self.model.overrides['conf'] = 0.5
             self.model.overrides['line_width'] = None
             self.model.overrides['box'] = True
-        
-        # Kiểm tra xem mô hình có hỗ trợ track không
-        has_tracking = hasattr(self.model, 'track')
-        available_trackers = []
-        
-        if has_tracking:
-            try:
-                from ultralytics.trackers import BOTSORT, BYTETracker
-                
-                try:
-                    _ = BYTETracker(track_thresh=0.25, track_buffer=30, match_thresh=0.8, frame_rate=30)
-                    available_trackers.append("bytetrack")
-                except: pass
-                    
-                try:
-                    _ = BOTSORT(track_thresh=0.25, track_buffer=30, match_thresh=0.8, frame_rate=30)
-                    available_trackers.append("botsort")
-                except: pass
-            except ImportError: pass
-                
-        if available_trackers:
-            print(f"Available trackers: {', '.join(available_trackers)}")
-        else:
-            print("No object tracking available. Install ultralytics tracking dependencies for smoother results.")
-
+   
     def build_ui(self):
-        """Xây dựng giao diện người dùng chính"""
         r = Tk(); self.root = r
         r.title('Nhận diện biển báo giao thông Việt Nam')
         sw, sh = r.winfo_screenwidth(), r.winfo_screenheight()
         ww, wh = 800, 750
         r.geometry(f"{ww}x{wh}+{(sw-ww)//2}+{(sh-wh)//2}")
         
-        # Tạo notebook chứa các tab
+        # Tạo các tab điều khiển
         nb = ttk.Notebook(r)
         nb.pack(expand=True, fill=BOTH, padx=5, pady=5)
         nb.bind("<<NotebookTabChanged>>", self.on_tab_changed)
@@ -146,9 +94,9 @@ class MainApp:
         
         r.mainloop()
 
+    # Xây dựng tab nhận diện ảnh
     def _build_image_tab(self, notebook):
-        """Xây dựng tab nhận diện ảnh"""
-        tab = self.create_detection_tab(notebook, 'Nhận diện ảnh', 'img')
+        self.create_detection_tab(notebook, 'Nhận diện ảnh', 'img')
         buttons = [
             ('Tải ảnh', self.on_image_upload),
             ('Nhận diện', self.on_image_detect),
@@ -156,20 +104,19 @@ class MainApp:
         ]
         self._create_buttons(self.img_button_frame, buttons)
 
+    # Xây dựng tab nhận diện video
     def _build_video_tab(self, notebook):
-        """Xây dựng tab nhận diện video"""
-        tab = self.create_detection_tab(notebook, 'Nhận diện video', 'vid')
+        self.create_detection_tab(notebook, 'Nhận diện video', 'vid')
         buttons = [
             ('Tải video', self.on_video_upload),
             ('Xử lý', self.on_video_process),
             ('Lưu', self.on_video_save)
         ]
-        
         self._create_buttons(self.vid_button_frame, buttons)
 
+    # Xây dựng tab camera
     def _build_camera_tab(self, notebook):
-        """Xây dựng tab camera trực tiếp"""
-        tab = self.create_detection_tab(notebook, 'Camera trực tiếp', 'cam')
+        self.create_detection_tab(notebook, 'Camera trực tiếp', 'cam')
         buttons = [
             ('Bắt đầu', self.on_cam_start),
             ('Dừng', self.on_cam_stop),
@@ -179,13 +126,11 @@ class MainApp:
         self._create_buttons(self.cam_button_frame, buttons)
 
     def _create_buttons(self, frame, button_configs):
-        """Tạo các nút từ cấu hình"""
         for text, cmd in button_configs:
             Button(frame, text=text, command=cmd, width=15).pack(side=LEFT, padx=5)
 
-
+    # Tạo các điều khiển cho tab nhận diện ảnh và video
     def create_detection_controls(self, tab, prefix):
-        """Tạo các điều khiển chung cho detection tab"""
         # Confidence slider
         setattr(self, f"{prefix}_conf", Scale(tab, from_=10, to=95, orient=HORIZONTAL, label='Tin cậy (%)'))
         getattr(self, f"{prefix}_conf").set(50)
@@ -196,7 +141,7 @@ class MainApp:
         getattr(self, f"{prefix}_iou").set(50)
         getattr(self, f"{prefix}_iou").pack(fill=X)
         
-        # Size control
+        # Kich thước ảnh
         f = Frame(tab); f.pack(fill=X)
         Label(f, text='Kích thước:').pack(side=LEFT)
         setattr(self, f"{prefix}_size", IntVar(value=640))
@@ -207,17 +152,18 @@ class MainApp:
         setattr(self, f"{prefix}_button_frame", Frame(tab))
         getattr(self, f"{prefix}_button_frame").pack(fill=X, pady=5)
         
-        # Path and progress indicators (sau khi tạo frame nút)
-        setattr(self, f"{prefix}_path", Label(tab, text='Chưa tải', fg='blue'))
+        # Path and progress indicators
+        path_text = "" if prefix == 'cam' else "Chưa tải"
+        setattr(self, f"{prefix}_path", Label(tab, text=path_text, fg='blue'))
         getattr(self, f"{prefix}_path").pack(pady=5)
         setattr(self, f"{prefix}_prog", ttk.Progressbar(tab, orient='horizontal', length=600, mode='determinate'))
 
+
     def create_detection_tab(self, notebook, title, prefix):
-        """Tạo cấu trúc cơ bản cho tab nhận diện"""
         tab = Frame(notebook)
         notebook.add(tab, text=title)
         
-        # Tạo các điều khiển chung (bao gồm cả frame nút)
+        # Tạo các điều khiển chung cho ảnh và video
         self.create_detection_controls(tab, prefix)
         
         # Khung hiển thị
@@ -228,31 +174,29 @@ class MainApp:
         setattr(self, f"{prefix}_txt", Label(tab, font=('Arial', 12)))
         getattr(self, f"{prefix}_txt").pack()
         
+        # Status labels
         setattr(self, f"{prefix}_status", Label(tab, fg='blue'))
         getattr(self, f"{prefix}_status").pack(pady=5)
         
         return tab
 
+    # Tạo hình ảnh trống khi không có file nào được tải lên
     def _create_blank_image(self):
-        """Tạo hình ảnh trống cho hiển thị"""
         blank = Image.new('RGB', (600, 400), color='white')
         return ImageTk.PhotoImage(blank)
 
     def on_tab_changed(self, event):
-        """Xử lý sự kiện khi người dùng chuyển tab"""
         tab_id = event.widget.select()
         tab_name = event.widget.tab(tab_id, "text")
         
-        # Reset trạng thái dựa vào tab được chọn
         if tab_name == 'Nhận diện ảnh':
             self._reset_tab('img')
         elif tab_name == 'Nhận diện video':
             self._reset_tab('vid')
         elif tab_name == 'Camera trực tiếp':
-            self._reset_camera_tab()
+            self._reset_tab('cam')
 
     def _reset_tab(self, prefix):
-        """Reset trạng thái của tab"""
         blank_photo = self._create_blank_image()
         disp = getattr(self, f"{prefix}_disp")
         disp.config(image=blank_photo)
@@ -260,99 +204,72 @@ class MainApp:
         
         # Reset các nhãn và trạng thái
         getattr(self, f"{prefix}_txt").config(text='')
-        getattr(self, f"{prefix}_status").config(text='')
-        getattr(self, f"{prefix}_path").config(text='Chưa tải')
+        getattr(self, f"{prefix}_status").config(text='' if prefix != 'cam' else 'Chưa khởi động')
         
+        if prefix != 'cam':
+            getattr(self, f"{prefix}_path").config(text='Chưa tải')
+        else:
+            getattr(self, f"{prefix}_path").config(text='')
         # Xóa dữ liệu liên kết
         path_attr = getattr(self, f"{prefix}_path")
         if hasattr(path_attr, 'file_path'):
             delattr(path_attr, 'file_path')
         
-        # Xóa kết quả xử lý nếu có
+        # Xử lý đặc biệt cho từng tab
         if prefix == 'img' and hasattr(disp, 'processed'):
             delattr(disp, 'processed')
         elif prefix == 'vid' and hasattr(self.vid_det, 'output_path'):
             delattr(self.vid_det, 'output_path')
-
-    def _reset_camera_tab(self):
-        """Reset tab camera với xử lý đặc biệt"""
-        # Dừng camera nếu đang chạy
-        if hasattr(self.cam_det, 'running') and self.cam_det.running:
+        elif prefix == 'cam' and hasattr(self.cam_det, 'running') and self.cam_det.running:
             self.on_cam_stop()
-        else:
-            # Nếu camera đã dừng, vẫn cần reset UI
-            blank_photo = self._create_blank_image()
-            self.cam_disp.config(image=blank_photo)
-            self.cam_disp.image = blank_photo
-            self.cam_txt.config(text='')
-            self.cam_status.config(text='Chưa khởi động')
 
     def display_image(self, image, display_widget, text_widget, labels=None):
-        """Hiển thị hình ảnh và cập nhật thông tin nhận diện"""
-        # Xử lý hình ảnh
+        # Xử lý hình ảnh một cách nhất quán
         if isinstance(image, np.ndarray):
+            # Chuyển đổi từ OpenCV BGR sang RGB
             img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(img)
+            display_widget.current = image  # Lưu frame hiện tại
         else:
             img = image
             
+        # Điều chỉnh kích thước và hiển thị
         img = img.resize((600, 400), Image.Resampling.LANCZOS)
         photo = ImageTk.PhotoImage(img)
         display_widget.config(image=photo)
         display_widget.image = photo
         
-        # Lưu frame hiện tại vào display_widget để sử dụng sau này
-        if isinstance(image, np.ndarray):
-            display_widget.current = image
-        
-        # Cập nhật thông tin nhận diện nếu có
+        # Cập nhật thông tin nhận diện
         if labels is not None:
             self._update_detection_labels(labels, text_widget)
 
+    # Cập nhật tên biển báo
     def _update_detection_labels(self, labels, text_widget):
-        """Cập nhật nhãn hiển thị kết quả nhận diện với tên tiếng Việt đầy đủ"""
         counts = {}
         for t in labels:
-            # Tách riêng tên nhãn và độ tin cậy
+            # Tách nhãn và độ tin cậy
             parts = t.split()
-            
-            # Nếu có độ tin cậy, tách nó ra
             confidence_part = parts[-1] if parts and parts[-1][0].isdigit() else ""
             name_parts = parts[:-1] if confidence_part else parts
             full_name = " ".join(name_parts)
-            
-            
-            # Tìm kiếm trong bảng ánh xạ
-            vietnamese_name = self.label_map.get(full_name, None)
-            
-            # Nếu không tìm thấy, thử các biến thể khác
-            if not vietnamese_name:
-                # Thử tìm kiếm không phân biệt chữ hoa/thường
-                for key, value in self.label_map.items():
-                    if key.lower() == full_name.lower():
-                        vietnamese_name = value
-                        break
-            
-            # Nếu vẫn không tìm thấy, giữ nguyên tên gốc
-            if not vietnamese_name:
-                vietnamese_name = full_name
-            
-            # Cập nhật số lượng
+                
+            # Tìm tên tiếng Việt
+            vietnamese_name = self.label_map.get(full_name, full_name)
             counts[vietnamese_name] = counts.get(vietnamese_name, 0) + 1
         
         text = ', '.join(f"{k} ({v})" for k, v in counts.items())
         text_widget.config(text='Nhận diện: ' + (text or 'Không có'))
 
-    # IMAGE TAB FUNCTIONS
+    # Chức năng upload ảnh
     def on_image_upload(self):
         path = filedialog.askopenfilename(filetypes=[('Images','*.jpg *.jpeg *.png')])
         if not path: return
         self.img_path.file_path = path
         self.img_path.config(text=os.path.basename(path))
         img = cv2.imread(path)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         self.display_image(img, self.img_disp, self.img_txt)
 
+    #Cấu hình nhận diện ảnh
     def on_image_detect(self):
         if not hasattr(self.img_path, 'file_path'):
             self.img_status.config(text='Vui lòng tải ảnh')
@@ -368,6 +285,7 @@ class MainApp:
         self.img_disp.processed = frame
         self.img_status.config(text='Xong')
 
+    # Lưu ảnh đã xử lý
     def on_image_save(self):
         if not hasattr(self.img_disp, 'processed'):
             messagebox.showinfo('Thông báo','Chưa có kết quả')
@@ -380,14 +298,13 @@ class MainApp:
             cv2.imwrite(p, self.img_disp.processed)
             messagebox.showinfo('Thành công',f'Lưu tại {p}')
 
-    # VIDEO TAB FUNCTIONS
+    # Xử lý video
     def on_video_upload(self):
         path = filedialog.askopenfilename(filetypes=[('Videos','*.mp4 *.avi')])
         if not path: return
         self.vid_path.file_path = path
         self.vid_path.config(text=os.path.basename(path))
-        
-        # Show first frame
+        # Đọc video đầu tiên để hiển thị
         cap = cv2.VideoCapture(path)
         ret, frm = cap.read()
         cap.release()
@@ -395,43 +312,41 @@ class MainApp:
             self.display_image(frm, self.vid_disp, self.vid_txt)
 
     def on_video_process(self):
-        if not hasattr(self.vid_path,'file_path'):
+        if not hasattr(self.vid_path, 'file_path'):
             self.vid_status.config(text='Vui lòng tải video')
             return
             
-        # Setup UI
+        # Hiển thị thanh tiến trình
         self.vid_prog.pack(fill=X, padx=5, pady=5)
         self.vid_prog['value'] = 0
         self.vid_status.config(text='Đang xử lý...')
         
-        # Setup output path
+        # Tạo đường dẫn đầu ra
         d = setup_output_directories()
         fname = f"video_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
         output_path = os.path.join(d, fname)
         
-        # Setup callbacks
-        def prog(i, total):
-            self.vid_prog['value'] = i*100/total
-            self.vid_status.config(text=f"Đang xử lý: {i}/{total} frames ({int(i*100/total)}%)")
-            
-        def frame_cb(frm, labels):
-            self.display_image(frm, self.vid_disp, self.vid_txt, labels)
-            
-        def finish(p):
-            self.vid_prog['value'] = 100
-            self.vid_prog.pack_forget()
-            self.vid_status.config(text=f'Xong: {os.path.basename(p)}')
-            self.vid_det.output_path = p  # Store for saving later
-            
-        # Start video processing
+        # Xử lý video với các callback
         self.vid_det.process(
             self.vid_path.file_path, 
             output_path,
             self.vid_conf.get()/100, 
             self.vid_iou.get()/100, 
             self.vid_size.get(),
-            prog, frame_cb, finish
+            lambda i, total: self._update_progress(i, total),
+            lambda frm, labels: self.display_image(frm, self.vid_disp, self.vid_txt, labels),
+            lambda p: self._video_processing_completed(p)
         )
+
+    def _update_progress(self, i, total):
+        self.vid_prog['value'] = i*100/total
+        self.vid_status.config(text=f"Đang xử lý: {i}/{total} frames ({int(i*100/total)}%)")
+
+    def _video_processing_completed(self, p):
+        self.vid_prog['value'] = 100
+        self.vid_prog.pack_forget()
+        self.vid_status.config(text=f'Xong: {os.path.basename(p)}')
+        self.vid_det.output_path = p
 
     def on_video_save(self):
         if not hasattr(self.vid_det, 'output_path') or not self.vid_det.output_path:
@@ -457,8 +372,10 @@ class MainApp:
         def label_cb(labels):
             self._update_detection_labels(labels, self.cam_txt)
             
-        self.cam_det.start(frame_cb, label_cb)
-
+        self.cam_det.start(conf_thresh=self.cam_conf.get()/100,
+                            iou_thresh=self.cam_iou.get()/100,
+                            img_size=self.cam_size.get(),
+                            frame_callback = frame_cb, label_callback=label_cb)
     def on_cam_stop(self):
         # Dừng camera trước
         self.cam_det.stop()
@@ -486,6 +403,7 @@ class MainApp:
         # Đảm bảo UI được cập nhật
         self.root.update()
 
+    # Chụp ảnh từ camera
     def on_cam_snapshot(self):
         # Kiểm tra xem camera có đang chạy không
         if not hasattr(self.cam_det, 'running') or not self.cam_det.running:
@@ -503,6 +421,7 @@ class MainApp:
         cv2.imwrite(p, self.cam_disp.current)
         messagebox.showinfo('Chụp ảnh', 'Đã lưu tại ' + p)
 
+    # Ghi video từ camera
     def on_cam_toggle(self):
         # Kiểm tra xem camera có đang chạy không
         if not self.cam_det.recording:
